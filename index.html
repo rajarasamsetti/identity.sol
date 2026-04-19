@@ -1,53 +1,80 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Selective Identity Sharing</title>
+  <title>Digital Identity Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/ethers/dist/ethers.min.js"></script>
 
   <style>
     body {
+      background: #121212;
+      color: #e5e5e5;
       font-family: Arial;
-      background: #0f172a;
-      color: white;
-      text-align: center;
+      margin: 0;
     }
 
     .container {
-      width: 500px;
+      width: 800px;
       margin: auto;
-      margin-top: 20px;
+      padding: 20px;
+    }
+
+    .topbar {
+      background: #1f1f1f;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .tabs button {
+      background: #1f1f1f;
+      border: 1px solid #333;
+      color: white;
+      padding: 8px 14px;
+      margin-right: 8px;
+      border-radius: 6px;
+      cursor: pointer;
     }
 
     .card {
-      background: #1e293b;
+      background: #1f1f1f;
       padding: 20px;
-      margin: 15px 0;
       border-radius: 10px;
-      text-align: left;
-    }
-
-    button {
-      padding: 8px 12px;
-      margin: 5px;
-      border: none;
-      background: #3b82f6;
-      color: white;
-      border-radius: 5px;
-      cursor: pointer;
+      margin-top: 15px;
     }
 
     input {
       width: 100%;
-      padding: 8px;
-      margin: 5px 0;
+      padding: 10px;
+      margin-top: 8px;
+      background: #121212;
+      border: 1px solid #333;
+      color: white;
+      border-radius: 6px;
     }
 
-    .request {
-      background: #334155;
-      padding: 10px;
-      margin: 5px 0;
-      border-radius: 8px;
+    button.action {
+      margin-top: 12px;
+      padding: 10px 14px;
+      background: #2563eb;
+      border: none;
+      border-radius: 6px;
+      color: white;
+      cursor: pointer;
     }
+
+    label {
+      font-size: 13px;
+      color: #aaa;
+    }
+
+    .status {
+      margin-top: 10px;
+      padding: 8px;
+      border-radius: 6px;
+    }
+
+    .success { background: #166534; }
+    .fail { background: #7f1d1d; }
   </style>
 </head>
 
@@ -55,49 +82,70 @@
 
 <div class="container">
 
-<h2>🔐 Identity Sharing System</h2>
+  <div class="topbar">
+    <b>Digital Identity Registry</b><br>
+    <small id="wallet">Wallet: Not Connected</small>
+  </div>
 
-<button onclick="connectWallet()">Connect Wallet</button>
-<p id="wallet"></p>
+  <button class="action" onclick="connectWallet()">Connect Wallet</button>
 
-<!-- USER PANEL -->
-<div class="card">
-  <h3>User Panel</h3>
-  <input id="identityHash" placeholder="Enter IPFS Hash">
-  <button onclick="storeIdentity()">Store Identity</button>
+  <div class="tabs">
+    <button onclick="showTab('register')">Register</button>
+    <button onclick="showTab('access')">Access</button>
+    <button onclick="showTab('query')">Query</button>
+  </div>
 
-  <h4>Pending Requests</h4>
-  <div id="requests"></div>
-</div>
+  <!-- REGISTER -->
+  <div id="register" class="card">
+    <h3>REGISTER IDENTITY</h3>
 
-<!-- VERIFIER PANEL -->
-<div class="card">
-  <h3>Verifier Panel</h3>
-  <input id="userAddress" placeholder="User Address">
-  <button onclick="requestAccess()">Request Access</button>
+    <label>Identity Data (will be hashed)</label>
+    <input id="identityInput" placeholder="e.g. Raja|1990|Aadhaar1234" oninput="computeHash()">
 
-  <button onclick="getIdentity()">View Identity</button>
-  <p id="result"></p>
-</div>
+    <label>Computed Hash</label>
+    <input id="hashOutput" disabled>
+
+    <button class="action" onclick="registerIdentity()">Register Identity →</button>
+  </div>
+
+  <!-- ACCESS -->
+  <div id="access" class="card" style="display:none;">
+    <h3>ACCESS CONTROL</h3>
+
+    <label>Verifier Address</label>
+    <input id="verifierAddr" placeholder="0x...">
+
+    <button class="action" onclick="grantAccess()">Grant Access</button>
+    <button class="action" onclick="revokeAccess()">Revoke Access</button>
+  </div>
+
+  <!-- QUERY -->
+  <div id="query" class="card" style="display:none;">
+    <h3>VERIFY IDENTITY STATUS</h3>
+
+    <label>User Address</label>
+    <input id="userAddr" placeholder="0x...">
+
+    <button class="action" onclick="getIdentity()">Check →</button>
+
+    <div id="result"></div>
+  </div>
 
 </div>
 
 <script>
 let contract, signer;
-let currentUser;
-
-// TEMP: local request store (simulate blockchain events)
-let requests = [];
 
 const contractAddress = "YOUR_CONTRACT_ADDRESS";
 
 const abi = [
   "function createIdentity(string memory _ipfsHash)",
   "function grantAccess(address verifier)",
+  "function revokeAccess(address verifier)",
   "function getIdentity(address user) view returns (string memory)"
 ];
 
-// CONNECT WALLET
+// Wallet connect
 async function connectWallet() {
   const provider = new ethers.providers.Web3Provider(window.ethereum);
   await provider.send("eth_requestAccounts", []);
@@ -105,81 +153,58 @@ async function connectWallet() {
 
   contract = new ethers.Contract(contractAddress, abi, signer);
 
-  currentUser = await signer.getAddress();
-  document.getElementById("wallet").innerText = "Connected: " + currentUser;
-
-  renderRequests();
+  document.getElementById("wallet").innerText =
+    "Wallet: " + await signer.getAddress();
 }
 
-// STORE IDENTITY
-async function storeIdentity() {
-  const hash = document.getElementById("identityHash").value;
+// Tabs
+function showTab(tab) {
+  ["register","access","query"].forEach(id=>{
+    document.getElementById(id).style.display = "none";
+  });
+  document.getElementById(tab).style.display = "block";
+}
+
+// Auto hash
+function computeHash() {
+  const input = document.getElementById("identityInput").value;
+  const hash = ethers.utils.keccak256(
+    ethers.utils.toUtf8Bytes(input)
+  );
+  document.getElementById("hashOutput").value = hash;
+}
+
+// Register
+async function registerIdentity() {
+  const hash = document.getElementById("hashOutput").value;
   await (await contract.createIdentity(hash)).wait();
-  alert("Identity Stored!");
+  alert("Identity Registered!");
 }
 
-// REQUEST ACCESS (Verifier)
-function requestAccess() {
-  const userAddr = document.getElementById("userAddress").value;
-
-  requests.push({
-    user: userAddr,
-    verifier: currentUser,
-    status: "pending"
-  });
-
-  alert("Request Sent!");
-  renderRequests();
+// Access
+async function grantAccess() {
+  const addr = document.getElementById("verifierAddr").value;
+  await (await contract.grantAccess(addr)).wait();
+  alert("Access Granted!");
 }
 
-// SHOW REQUESTS (User)
-function renderRequests() {
-  const container = document.getElementById("requests");
-  container.innerHTML = "";
-
-  requests.forEach((req, index) => {
-    if (req.user.toLowerCase() === currentUser?.toLowerCase() && req.status === "pending") {
-      container.innerHTML += `
-        <div class="request">
-          Verifier: ${req.verifier}
-          <br>
-          <button onclick="approve(${index})">Approve</button>
-          <button onclick="reject(${index})">Reject</button>
-        </div>
-      `;
-    }
-  });
+async function revokeAccess() {
+  const addr = document.getElementById("verifierAddr").value;
+  await (await contract.revokeAccess(addr)).wait();
+  alert("Access Revoked!");
 }
 
-// APPROVE
-async function approve(index) {
-  const req = requests[index];
-
-  await (await contract.grantAccess(req.verifier)).wait();
-  requests[index].status = "approved";
-
-  alert("Access Approved!");
-  renderRequests();
-}
-
-// REJECT
-function reject(index) {
-  requests[index].status = "rejected";
-  alert("Request Rejected!");
-  renderRequests();
-}
-
-// GET IDENTITY (Verifier)
+// Query
 async function getIdentity() {
-  const addr = document.getElementById("userAddress").value;
+  const addr = document.getElementById("userAddr").value;
 
   try {
     const hash = await contract.getIdentity(addr);
-    document.getElementById("result").innerText =
-      "Identity Hash: " + hash;
+    document.getElementById("result").innerHTML =
+      `<div class="status success">✅ Verified<br>${hash}</div>`;
   } catch {
-    document.getElementById("result").innerText =
-      "❌ Access Denied";
+    document.getElementById("result").innerHTML =
+      `<div class="status fail">❌ Access Denied</div>`;
   }
 }
 </script>
