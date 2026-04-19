@@ -1,27 +1,27 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Identity Dashboard</title>
+  <title>Selective Identity Sharing</title>
   <script src="https://cdn.jsdelivr.net/npm/ethers/dist/ethers.min.js"></script>
 
   <style>
     body {
-      background: #0f172a;
-      color: #e2e8f0;
       font-family: Arial;
+      background: #0f172a;
+      color: white;
       text-align: center;
     }
 
     .container {
       width: 500px;
       margin: auto;
-      margin-top: 30px;
+      margin-top: 20px;
     }
 
     .card {
       background: #1e293b;
       padding: 20px;
-      margin: 20px 0;
+      margin: 15px 0;
       border-radius: 10px;
       text-align: left;
     }
@@ -30,9 +30,9 @@
       padding: 8px 12px;
       margin: 5px;
       border: none;
-      border-radius: 5px;
       background: #3b82f6;
       color: white;
+      border-radius: 5px;
       cursor: pointer;
     }
 
@@ -40,26 +40,13 @@
       width: 100%;
       padding: 8px;
       margin: 5px 0;
-      border-radius: 5px;
-      border: none;
     }
 
-    .tabs button {
+    .request {
       background: #334155;
-    }
-
-    .badge {
-      padding: 5px 10px;
-      border-radius: 20px;
-      font-size: 12px;
-    }
-
-    .verified {
-      background: #22c55e;
-    }
-
-    .notverified {
-      background: #ef4444;
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 8px;
     }
   </style>
 </head>
@@ -68,66 +55,49 @@
 
 <div class="container">
 
-  <h2>🔐 Identity Dashboard</h2>
+<h2>🔐 Identity Sharing System</h2>
 
-  <button onclick="connectWallet()">Connect Wallet</button>
-  <p id="wallet"></p>
+<button onclick="connectWallet()">Connect Wallet</button>
+<p id="wallet"></p>
 
-  <!-- Tabs -->
-  <div class="tabs">
-    <button onclick="showTab('register')">Register</button>
-    <button onclick="showTab('admin')">Admin</button>
-    <button onclick="showTab('access')">Access</button>
-    <button onclick="showTab('query')">Query</button>
-  </div>
+<!-- USER PANEL -->
+<div class="card">
+  <h3>User Panel</h3>
+  <input id="identityHash" placeholder="Enter IPFS Hash">
+  <button onclick="storeIdentity()">Store Identity</button>
 
-  <!-- REGISTER -->
-  <div id="register" class="card">
-    <h3>Register Identity</h3>
-    <input type="text" id="ipfsHash" placeholder="Enter IPFS Hash">
-    <button onclick="createIdentity()">Register</button>
-  </div>
+  <h4>Pending Requests</h4>
+  <div id="requests"></div>
+</div>
 
-  <!-- ADMIN -->
-  <div id="admin" class="card" style="display:none;">
-    <h3>Verify Identity Status</h3>
-    <input type="text" id="verifyAddress" placeholder="User Address">
-    <button onclick="checkVerification()">Check</button>
-    <p id="verifyResult"></p>
-  </div>
+<!-- VERIFIER PANEL -->
+<div class="card">
+  <h3>Verifier Panel</h3>
+  <input id="userAddress" placeholder="User Address">
+  <button onclick="requestAccess()">Request Access</button>
 
-  <!-- ACCESS -->
-  <div id="access" class="card" style="display:none;">
-    <h3>Access Control</h3>
-    <input type="text" id="verifierAddress" placeholder="Verifier Address">
-    <button onclick="grantAccess()">Grant</button>
-    <button onclick="revokeAccess()">Revoke</button>
-  </div>
-
-  <!-- QUERY -->
-  <div id="query" class="card" style="display:none;">
-    <h3>Get Identity</h3>
-    <input type="text" id="userAddress" placeholder="User Address">
-    <button onclick="getIdentity()">Get</button>
-    <p id="identityResult"></p>
-  </div>
+  <button onclick="getIdentity()">View Identity</button>
+  <p id="result"></p>
+</div>
 
 </div>
 
 <script>
 let contract, signer;
+let currentUser;
+
+// TEMP: local request store (simulate blockchain events)
+let requests = [];
 
 const contractAddress = "YOUR_CONTRACT_ADDRESS";
 
 const abi = [
   "function createIdentity(string memory _ipfsHash)",
   "function grantAccess(address verifier)",
-  "function revokeAccess(address verifier)",
-  "function getIdentity(address user) view returns (string memory)",
-  "function verifyIdentity(address user, string memory hash) view returns (bool)"
+  "function getIdentity(address user) view returns (string memory)"
 ];
 
-// Wallet
+// CONNECT WALLET
 async function connectWallet() {
   const provider = new ethers.providers.Web3Provider(window.ethereum);
   await provider.send("eth_requestAccounts", []);
@@ -135,59 +105,82 @@ async function connectWallet() {
 
   contract = new ethers.Contract(contractAddress, abi, signer);
 
-  document.getElementById("wallet").innerText =
-    "Connected: " + await signer.getAddress();
+  currentUser = await signer.getAddress();
+  document.getElementById("wallet").innerText = "Connected: " + currentUser;
+
+  renderRequests();
 }
 
-// Tabs
-function showTab(tab) {
-  document.getElementById("register").style.display = "none";
-  document.getElementById("admin").style.display = "none";
-  document.getElementById("access").style.display = "none";
-  document.getElementById("query").style.display = "none";
-
-  document.getElementById(tab).style.display = "block";
-}
-
-// Register
-async function createIdentity() {
-  const hash = document.getElementById("ipfsHash").value;
+// STORE IDENTITY
+async function storeIdentity() {
+  const hash = document.getElementById("identityHash").value;
   await (await contract.createIdentity(hash)).wait();
-  alert("Identity Registered!");
+  alert("Identity Stored!");
 }
 
-// Access
-async function grantAccess() {
-  const addr = document.getElementById("verifierAddress").value;
-  await (await contract.grantAccess(addr)).wait();
-  alert("Access Granted!");
+// REQUEST ACCESS (Verifier)
+function requestAccess() {
+  const userAddr = document.getElementById("userAddress").value;
+
+  requests.push({
+    user: userAddr,
+    verifier: currentUser,
+    status: "pending"
+  });
+
+  alert("Request Sent!");
+  renderRequests();
 }
 
-async function revokeAccess() {
-  const addr = document.getElementById("verifierAddress").value;
-  await (await contract.revokeAccess(addr)).wait();
-  alert("Access Revoked!");
+// SHOW REQUESTS (User)
+function renderRequests() {
+  const container = document.getElementById("requests");
+  container.innerHTML = "";
+
+  requests.forEach((req, index) => {
+    if (req.user.toLowerCase() === currentUser?.toLowerCase() && req.status === "pending") {
+      container.innerHTML += `
+        <div class="request">
+          Verifier: ${req.verifier}
+          <br>
+          <button onclick="approve(${index})">Approve</button>
+          <button onclick="reject(${index})">Reject</button>
+        </div>
+      `;
+    }
+  });
 }
 
-// Query
+// APPROVE
+async function approve(index) {
+  const req = requests[index];
+
+  await (await contract.grantAccess(req.verifier)).wait();
+  requests[index].status = "approved";
+
+  alert("Access Approved!");
+  renderRequests();
+}
+
+// REJECT
+function reject(index) {
+  requests[index].status = "rejected";
+  alert("Request Rejected!");
+  renderRequests();
+}
+
+// GET IDENTITY (Verifier)
 async function getIdentity() {
   const addr = document.getElementById("userAddress").value;
+
   try {
     const hash = await contract.getIdentity(addr);
-    document.getElementById("identityResult").innerText =
-      "IPFS: " + hash;
+    document.getElementById("result").innerText =
+      "Identity Hash: " + hash;
   } catch {
-    document.getElementById("identityResult").innerText =
+    document.getElementById("result").innerText =
       "❌ Access Denied";
   }
-}
-
-// Admin Verify (basic demo)
-function checkVerification() {
-  const addr = document.getElementById("verifyAddress").value;
-
-  document.getElementById("verifyResult").innerHTML =
-    `<span class="badge notverified">${addr} Not Verified</span>`;
 }
 </script>
 
