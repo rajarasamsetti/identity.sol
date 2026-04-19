@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Digital Identity DApp</title>
+</head>
+<body>
+
+<h2>🔐 Digital Identity Management</h2>
+
+<button onclick="connectWallet()">Connect Wallet</button>
+<p id="wallet"></p>
+
+<h3>Create Identity</h3>
+<input type="text" id="ipfsHash" placeholder="Enter IPFS Hash">
+<button onclick="createIdentity()">Submit</button>
+
+<h3>Verify Identity</h3>
+<input type="text" id="verifyAddress" placeholder="User Address">
+<input type="text" id="verifyHash" placeholder="IPFS Hash">
+<button onclick="verifyIdentity()">Verify</button>
+
+<p id="result"></p>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers/dist/ethers.min.js"></script>
+
+<script>
+let contract;
+let signer;
+
+const contractAddress = "YOUR_CONTRACT_ADDRESS";
+const abi = [
+  "function createIdentity(string memory _ipfsHash)",
+  "function verifyIdentity(address _user, string memory _hash) public view returns (bool)"
+];
+
+async function connectWallet() {
+  if (window.ethereum) {
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    await provider.send("eth_requestAccounts", []);
+    signer = provider.getSigner();
+
+    contract = new ethers.Contract(contractAddress, abi, signer);
+
+    const address = await signer.getAddress();
+    document.getElementById("wallet").innerText = "Connected: " + address;
+  } else {
+    alert("Install MetaMask!");
+  }
+}
+
+async function createIdentity() {
+  const hash = document.getElementById("ipfsHash").value;
+  const tx = await contract.createIdentity(hash);
+  await tx.wait();
+  alert("Identity Stored!");
+}
+
+async function verifyIdentity() {
+  const addr = document.getElementById("verifyAddress").value;
+  const hash = document.getElementById("verifyHash").value;
+
+  const result = await contract.verifyIdentity(addr, hash);
+  document.getElementById("result").innerText =
+    result ? "✅ Verified" : "❌ Not Verified";
+}
+</script>
+
+</body>
+</html>
