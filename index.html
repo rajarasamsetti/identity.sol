@@ -1,67 +1,107 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Digital Identity DApp</title>
+  <title>Identity Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/ethers/dist/ethers.min.js"></script>
+
+  <style>
+    body { font-family: Arial; background: #f4f6f9; text-align:center; }
+    .card { background:white; padding:20px; margin:20px auto; width:400px;
+            border-radius:10px; box-shadow:0 0 10px rgba(0,0,0,0.1);}
+    button { padding:10px; margin:5px; background:#007bff; color:white; border:none; }
+    input { padding:8px; margin:5px; width:90%; }
+  </style>
 </head>
+
 <body>
 
-<h2>🔐 Digital Identity Management</h2>
+<h2>🔐 Digital Identity Dashboard</h2>
 
 <button onclick="connectWallet()">Connect Wallet</button>
 <p id="wallet"></p>
 
-<h3>Create Identity</h3>
-<input type="text" id="ipfsHash" placeholder="Enter IPFS Hash">
-<button onclick="createIdentity()">Submit</button>
+<div class="card">
+  <h3>Select Role</h3>
+  <button onclick="setRole('user')">User</button>
+  <button onclick="setRole('verifier')">Verifier</button>
+</div>
 
-<h3>Verify Identity</h3>
-<input type="text" id="verifyAddress" placeholder="User Address">
-<input type="text" id="verifyHash" placeholder="IPFS Hash">
-<button onclick="verifyIdentity()">Verify</button>
+<div class="card" id="userPanel" style="display:none;">
+  <h3>User Panel</h3>
+  <input type="text" id="ipfsHash" placeholder="Enter IPFS Hash">
+  <button onclick="createIdentity()">Store Identity</button>
 
-<p id="result"></p>
+  <input type="text" id="verifierAddress" placeholder="Verifier Address">
+  <button onclick="grantAccess()">Grant Access</button>
+  <button onclick="revokeAccess()">Revoke Access</button>
+</div>
 
-<script src="https://cdn.jsdelivr.net/npm/ethers/dist/ethers.min.js"></script>
+<div class="card" id="verifierPanel" style="display:none;">
+  <h3>Verifier Panel</h3>
+  <input type="text" id="userAddress" placeholder="User Address">
+  <button onclick="getIdentity()">Get Identity</button>
+  <p id="identityResult"></p>
+</div>
 
 <script>
-let contract;
-let signer;
+let contract, signer;
+let role = "";
 
 const contractAddress = "YOUR_CONTRACT_ADDRESS";
+
 const abi = [
   "function createIdentity(string memory _ipfsHash)",
-  "function verifyIdentity(address _user, string memory _hash) public view returns (bool)"
+  "function grantAccess(address verifier)",
+  "function revokeAccess(address verifier)",
+  "function getIdentity(address user) view returns (string memory)"
 ];
 
 async function connectWallet() {
-  if (window.ethereum) {
-    const provider = new ethers.providers.Web3Provider(window.ethereum);
-    await provider.send("eth_requestAccounts", []);
-    signer = provider.getSigner();
+  const provider = new ethers.providers.Web3Provider(window.ethereum);
+  await provider.send("eth_requestAccounts", []);
+  signer = provider.getSigner();
+  contract = new ethers.Contract(contractAddress, abi, signer);
 
-    contract = new ethers.Contract(contractAddress, abi, signer);
+  document.getElementById("wallet").innerText =
+    "Connected: " + await signer.getAddress();
+}
 
-    const address = await signer.getAddress();
-    document.getElementById("wallet").innerText = "Connected: " + address;
-  } else {
-    alert("Install MetaMask!");
-  }
+function setRole(selected) {
+  role = selected;
+  document.getElementById("userPanel").style.display =
+    role === "user" ? "block" : "none";
+  document.getElementById("verifierPanel").style.display =
+    role === "verifier" ? "block" : "none";
 }
 
 async function createIdentity() {
   const hash = document.getElementById("ipfsHash").value;
-  const tx = await contract.createIdentity(hash);
-  await tx.wait();
+  await (await contract.createIdentity(hash)).wait();
   alert("Identity Stored!");
 }
 
-async function verifyIdentity() {
-  const addr = document.getElementById("verifyAddress").value;
-  const hash = document.getElementById("verifyHash").value;
+async function grantAccess() {
+  const addr = document.getElementById("verifierAddress").value;
+  await (await contract.grantAccess(addr)).wait();
+  alert("Access Granted!");
+}
 
-  const result = await contract.verifyIdentity(addr, hash);
-  document.getElementById("result").innerText =
-    result ? "✅ Verified" : "❌ Not Verified";
+async function revokeAccess() {
+  const addr = document.getElementById("verifierAddress").value;
+  await (await contract.revokeAccess(addr)).wait();
+  alert("Access Revoked!");
+}
+
+async function getIdentity() {
+  const addr = document.getElementById("userAddress").value;
+  try {
+    const hash = await contract.getIdentity(addr);
+    document.getElementById("identityResult").innerText =
+      "IPFS Hash: " + hash;
+  } catch {
+    document.getElementById("identityResult").innerText =
+      "❌ Access Denied";
+  }
 }
 </script>
 
