@@ -1,213 +1,1012 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Digital Identity Dashboard</title>
-  <script src="https://cdn.jsdelivr.net/npm/ethers/dist/ethers.min.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Digital Identity — Blockchain DApp</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #050a0f;
+    --surface: #0b1520;
+    --panel: #0f1e2e;
+    --border: #1a3a5c;
+    --accent: #00d4ff;
+    --accent2: #00ff88;
+    --accent3: #ff6b35;
+    --warn: #ffd700;
+    --text: #c8e0f0;
+    --muted: #4a7a9b;
+    --font-mono: 'Share Tech Mono', monospace;
+    --font-ui: 'Rajdhani', sans-serif;
+  }
 
-  <style>
-    body {
-      background: #121212;
-      color: #e5e5e5;
-      font-family: Arial;
-      margin: 0;
-    }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    .container {
-      width: 800px;
-      margin: auto;
-      padding: 20px;
-    }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
 
-    .topbar {
-      background: #1f1f1f;
-      padding: 15px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-    }
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,212,255,0.015) 2px,
+      rgba(0,212,255,0.015) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
 
-    .tabs button {
-      background: #1f1f1f;
-      border: 1px solid #333;
-      color: white;
-      padding: 8px 14px;
-      margin-right: 8px;
-      border-radius: 6px;
-      cursor: pointer;
-    }
+  /* Grid background */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
 
-    .card {
-      background: #1f1f1f;
-      padding: 20px;
-      border-radius: 10px;
-      margin-top: 15px;
-    }
+  /* Header */
+  header {
+    position: relative;
+    z-index: 10;
+    padding: 20px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(0,212,255,0.05) 0%, transparent 100%);
+  }
 
-    input {
-      width: 100%;
-      padding: 10px;
-      margin-top: 8px;
-      background: #121212;
-      border: 1px solid #333;
-      color: white;
-      border-radius: 6px;
-    }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
 
-    button.action {
-      margin-top: 12px;
-      padding: 10px 14px;
-      background: #2563eb;
-      border: none;
-      border-radius: 6px;
-      color: white;
-      cursor: pointer;
-    }
+  .logo-icon {
+    width: 40px; height: 40px;
+    border: 2px solid var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 0 18px rgba(0,212,255,0.4);
+    animation: pulse-border 3s ease-in-out infinite;
+  }
 
-    label {
-      font-size: 13px;
-      color: #aaa;
-    }
+  @keyframes pulse-border {
+    0%,100% { box-shadow: 0 0 18px rgba(0,212,255,0.4); }
+    50% { box-shadow: 0 0 30px rgba(0,212,255,0.7); }
+  }
 
-    .status {
-      margin-top: 10px;
-      padding: 8px;
-      border-radius: 6px;
-    }
+  .logo-text { font-size: 22px; font-weight: 700; letter-spacing: 3px; color: var(--accent); text-transform: uppercase; }
+  .logo-sub { font-family: var(--font-mono); font-size: 11px; color: var(--muted); letter-spacing: 2px; }
 
-    .success { background: #166534; }
-    .fail { background: #7f1d1d; }
-  </style>
+  #connectBtn {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 10px 24px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+    clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+  }
+  #connectBtn:hover { background: rgba(0,212,255,0.1); box-shadow: 0 0 20px rgba(0,212,255,0.3); }
+  #connectBtn.connected { border-color: var(--accent2); color: var(--accent2); }
+
+  /* Main layout */
+  main {
+    position: relative;
+    z-index: 10;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 30px;
+  }
+
+  /* Status bar */
+  .status-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 36px;
+  }
+
+  .stat-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 16px 20px;
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+  }
+
+  .stat-label { font-family: var(--font-mono); font-size: 10px; color: var(--muted); letter-spacing: 2px; margin-bottom: 6px; text-transform: uppercase; }
+  .stat-value { font-size: 15px; font-weight: 600; color: var(--accent); word-break: break-all; font-family: var(--font-mono); }
+  .stat-value.green { color: var(--accent2); }
+  .stat-value.orange { color: var(--accent3); }
+
+  /* Section title */
+  .section-title {
+    font-size: 13px;
+    letter-spacing: 4px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: var(--font-mono);
+  }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* Cards grid */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 20px;
+    margin-bottom: 36px;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .card:hover { border-color: rgba(0,212,255,0.4); }
+  .card:hover::before { opacity: 1; }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .card-icon {
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    border: 1px solid var(--border);
+    background: rgba(0,212,255,0.05);
+  }
+
+  .card-title { font-size: 16px; font-weight: 700; letter-spacing: 1px; color: var(--accent); text-transform: uppercase; }
+  .card-desc { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+
+  /* Form inputs */
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 11px; color: var(--muted); letter-spacing: 2px; margin-bottom: 6px; font-family: var(--font-mono); text-transform: uppercase; }
+
+  .field input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 14px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .field input:focus { border-color: var(--accent); box-shadow: 0 0 10px rgba(0,212,255,0.15); }
+  .field input::placeholder { color: var(--muted); }
+
+  /* Buttons */
+  .btn {
+    width: 100%;
+    padding: 12px;
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.1);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .btn:hover::after { opacity: 1; }
+  .btn:active { transform: scale(0.98); }
+
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { box-shadow: 0 0 20px rgba(0,212,255,0.5); }
+
+  .btn-success { background: var(--accent2); color: #000; }
+  .btn-success:hover { box-shadow: 0 0 20px rgba(0,255,136,0.5); }
+
+  .btn-danger { background: var(--accent3); color: #fff; }
+  .btn-danger:hover { box-shadow: 0 0 20px rgba(255,107,53,0.5); }
+
+  .btn-admin { background: var(--warn); color: #000; }
+  .btn-admin:hover { box-shadow: 0 0 20px rgba(255,215,0,0.5); }
+
+  .btn-neutral { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  .btn-neutral:hover { background: rgba(0,212,255,0.1); }
+
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn:disabled:hover::after { opacity: 0; }
+  .btn:disabled:active { transform: none; }
+
+  /* Log panel */
+  .log-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 20px;
+    height: 280px;
+    overflow-y: auto;
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  .log-panel::-webkit-scrollbar { width: 4px; }
+  .log-panel::-webkit-scrollbar-track { background: transparent; }
+  .log-panel::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .log-entry {
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(26,58,92,0.4);
+    line-height: 1.6;
+    display: flex;
+    gap: 12px;
+  }
+
+  .log-time { color: var(--muted); flex-shrink: 0; }
+  .log-msg { flex: 1; }
+  .log-msg.success { color: var(--accent2); }
+  .log-msg.error { color: #ff4757; }
+  .log-msg.info { color: var(--accent); }
+  .log-msg.warn { color: var(--warn); }
+
+  /* Result badge */
+  .result-badge {
+    margin-top: 14px;
+    padding: 10px 14px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    display: none;
+  }
+  .result-badge.show { display: block; }
+  .result-badge.true { background: rgba(0,255,136,0.1); border: 1px solid var(--accent2); color: var(--accent2); }
+  .result-badge.false { background: rgba(255,71,87,0.1); border: 1px solid #ff4757; color: #ff4757; }
+
+  /* Contract info */
+  .contract-info {
+    background: rgba(0,212,255,0.04);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    padding: 16px 20px;
+    margin-bottom: 36px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  .contract-info .ci-row { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 6px; }
+  .contract-info .ci-row:last-child { margin-bottom: 0; }
+  .ci-key { color: var(--muted); min-width: 120px; }
+  .ci-val { color: var(--accent); word-break: break-all; }
+
+  /* Loader spinner */
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(0,212,255,0.3);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Notification toast */
+  #toast {
+    position: fixed;
+    bottom: 30px; right: 30px;
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    padding: 14px 20px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--accent);
+    z-index: 9999;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s;
+    max-width: 340px;
+    box-shadow: 0 0 30px rgba(0,212,255,0.2);
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.error { border-color: #ff4757; color: #ff4757; }
+
+  /* Decorative corner */
+  .card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 20px; height: 20px;
+    border-bottom: 2px solid var(--border);
+    border-right: 2px solid var(--border);
+  }
+
+  @media (max-width: 600px) {
+    header { padding: 16px 20px; }
+    main { padding: 24px 16px; }
+    .logo-text { font-size: 16px; }
+    .cards-grid { grid-template-columns: 1fr; }
+  }
+</style>
 </head>
-
 <body>
 
-<div class="container">
+<header>
+  <div class="logo">
+    <div class="logo-icon">🪪</div>
+    <div>
+      <div class="logo-text">DigitalID</div>
+      <div class="logo-sub">BLOCKCHAIN IDENTITY SYSTEM</div>
+    </div>
+  </div>
+  <button id="connectBtn" onclick="connectWallet()">⬡ CONNECT WALLET</button>
+</header>
 
-  <div class="topbar">
-    <b>Digital Identity Registry</b><br>
-    <small id="wallet">Wallet: Not Connected</small>
+<main>
+
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <div class="stat-card">
+      <div class="stat-label">Your Address</div>
+      <div class="stat-value" id="addrDisplay">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Registered</div>
+      <div class="stat-value green" id="regStatus">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Verified</div>
+      <div class="stat-value orange" id="verStatus">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Network</div>
+      <div class="stat-value" id="networkDisplay">—</div>
+    </div>
   </div>
 
-  <button class="action" onclick="connectWallet()">Connect Wallet</button>
-
-  <div class="tabs">
-    <button onclick="showTab('register')">Register</button>
-    <button onclick="showTab('access')">Access</button>
-    <button onclick="showTab('query')">Query</button>
+  <!-- Contract Info -->
+  <div class="contract-info">
+    <div class="ci-row"><span class="ci-key">Contract:</span><span class="ci-val" id="contractAddr">Paste your deployed contract address below ↓</span></div>
+    <div class="ci-row"><span class="ci-key">Status:</span><span class="ci-val" id="contractStatus">Not connected</span></div>
   </div>
 
-  <!-- REGISTER -->
-  <div id="register" class="card">
-    <h3>REGISTER IDENTITY</h3>
-
-    <label>Identity Data (will be hashed)</label>
-    <input id="identityInput" placeholder="e.g. Raja|1990|Aadhaar1234" oninput="computeHash()">
-
-    <label>Computed Hash</label>
-    <input id="hashOutput" disabled>
-
-    <button class="action" onclick="registerIdentity()">Register Identity →</button>
+  <!-- Contract Setup -->
+  <div class="section-title">⬡ Contract Setup</div>
+  <div style="margin-bottom:36px;">
+    <div class="field">
+      <label>Deployed Contract Address</label>
+      <input type="text" id="contractInput" placeholder="0x..." />
+    </div>
+    <button class="btn btn-neutral" onclick="loadContract()" style="max-width:260px">⬡ LOAD CONTRACT</button>
   </div>
 
-  <!-- ACCESS -->
-  <div id="access" class="card" style="display:none;">
-    <h3>ACCESS CONTROL</h3>
+  <!-- Action Cards -->
+  <div class="section-title">⬡ Identity Operations</div>
+  <div class="cards-grid">
 
-    <label>Verifier Address</label>
-    <input id="verifierAddr" placeholder="0x...">
+    <!-- Register -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon">📝</div>
+        <div>
+          <div class="card-title">Register Identity</div>
+          <div class="card-desc">Hash your identity data on-chain</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Identity Data (will be hashed)</label>
+        <input type="text" id="identityData" placeholder="name, DOB, national-id..." />
+      </div>
+      <div class="field">
+        <label>Preview Hash</label>
+        <input type="text" id="hashPreview" readonly placeholder="keccak256 hash appears here" style="color:var(--muted);font-size:11px;"/>
+      </div>
+      <button class="btn btn-primary" onclick="registerIdentity()">⬡ REGISTER IDENTITY</button>
+    </div>
 
-    <button class="action" onclick="grantAccess()">Grant Access</button>
-    <button class="action" onclick="revokeAccess()">Revoke Access</button>
+    <!-- Grant Access -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon">🔓</div>
+        <div>
+          <div class="card-title">Grant Access</div>
+          <div class="card-desc">Allow a service provider to read your ID</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Service Provider Address</label>
+        <input type="text" id="grantAddr" placeholder="0x..." />
+      </div>
+      <button class="btn btn-success" onclick="grantAccess()">⬡ GRANT ACCESS</button>
+    </div>
+
+    <!-- Revoke Access -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon">🔒</div>
+        <div>
+          <div class="card-title">Revoke Access</div>
+          <div class="card-desc">Remove a provider's permission</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Service Provider Address</label>
+        <input type="text" id="revokeAddr" placeholder="0x..." />
+      </div>
+      <button class="btn btn-danger" onclick="revokeAccess()">⬡ REVOKE ACCESS</button>
+    </div>
+
+    <!-- Admin Verify -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon">🛡️</div>
+        <div>
+          <div class="card-title">Verify Citizen</div>
+          <div class="card-desc">Admin: approve a registered citizen</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Citizen Address to Verify</label>
+        <input type="text" id="verifyCitizenAddr" placeholder="0x..." />
+      </div>
+      <button class="btn btn-admin" onclick="verifyCitizen()">⬡ VERIFY (ADMIN ONLY)</button>
+    </div>
+
+    <!-- Check Access -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon">🔎</div>
+        <div>
+          <div class="card-title">Check Access</div>
+          <div class="card-desc">Query permission between user & provider</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>User Address</label>
+        <input type="text" id="checkUser" placeholder="0x..." />
+      </div>
+      <div class="field">
+        <label>Service Provider Address</label>
+        <input type="text" id="checkProvider" placeholder="0x..." />
+      </div>
+      <button class="btn btn-neutral" onclick="checkAccess()">⬡ CHECK ACCESS</button>
+      <div class="result-badge" id="accessResult"></div>
+    </div>
+
+    <!-- Verify Identity -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon">✅</div>
+        <div>
+          <div class="card-title">Verify Identity Status</div>
+          <div class="card-desc">Check if an address is verified on-chain</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Address to Check</label>
+        <input type="text" id="verifyAddr" placeholder="0x..." />
+      </div>
+      <button class="btn btn-neutral" onclick="verifyIdentity()">⬡ CHECK VERIFICATION</button>
+      <div class="result-badge" id="verifyResult"></div>
+    </div>
+
   </div>
 
-  <!-- QUERY -->
-  <div id="query" class="card" style="display:none;">
-    <h3>VERIFY IDENTITY STATUS</h3>
-
-    <label>User Address</label>
-    <input id="userAddr" placeholder="0x...">
-
-    <button class="action" onclick="getIdentity()">Check →</button>
-
-    <div id="result"></div>
+  <!-- Transaction Log -->
+  <div class="section-title">⬡ Transaction Log</div>
+  <div class="log-panel" id="logPanel">
+    <div class="log-entry">
+      <span class="log-time">--:--:--</span>
+      <span class="log-msg info">System initialized. Connect wallet to begin.</span>
+    </div>
   </div>
 
-</div>
+</main>
+
+<div id="toast"></div>
 
 <script>
-let contract, signer;
+// ─── ABI ────────────────────────────────────────────
+const ABI = [
+	{
+		"inputs": [],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "serviceProvider",
+				"type": "address"
+			}
+		],
+		"name": "AccessGranted",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "serviceProvider",
+				"type": "address"
+			}
+		],
+		"name": "AccessRevoked",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_serviceProvider",
+				"type": "address"
+			}
+		],
+		"name": "grantAccess",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			}
+		],
+		"name": "Registered",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes32",
+				"name": "_hash",
+				"type": "bytes32"
+			}
+		],
+		"name": "registerIdentity",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_serviceProvider",
+				"type": "address"
+			}
+		],
+		"name": "revokeAccess",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			}
+		],
+		"name": "Verified",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_user",
+				"type": "address"
+			}
+		],
+		"name": "verifyCitizen",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "admin",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_user",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "_serviceProvider",
+				"type": "address"
+			}
+		],
+		"name": "checkAccess",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "citizens",
+		"outputs": [
+			{
+				"internalType": "bytes32",
+				"name": "identityHash",
+				"type": "bytes32"
+			},
+			{
+				"internalType": "bool",
+				"name": "isRegistered",
+				"type": "bool"
+			},
+			{
+				"internalType": "bool",
+				"name": "isVerified",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "permissions",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_user",
+				"type": "address"
+			}
+		],
+		"name": "verifyIdentity",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	}
+]
 
-const contractAddress = "YOUR_CONTRACT_ADDRESS";
+// ─── State ───────────────────────────────────────────
+let provider, signer, contract, userAddress;
 
-const abi = [
-  "function createIdentity(string memory _ipfsHash)",
-  "function grantAccess(address verifier)",
-  "function revokeAccess(address verifier)",
-  "function getIdentity(address user) view returns (string memory)"
-];
+// ─── Utilities ───────────────────────────────────────
+function log(msg, type = 'info') {
+  const panel = document.getElementById('logPanel');
+  const t = new Date().toTimeString().slice(0,8);
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="log-time">${t}</span><span class="log-msg ${type}">${msg}</span>`;
+  panel.appendChild(entry);
+  panel.scrollTop = panel.scrollHeight;
+}
 
-// Wallet connect
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  setTimeout(() => el.className = '', 3500);
+}
+
+function shortAddr(addr) {
+  return addr.slice(0,6) + '...' + addr.slice(-4);
+}
+
+function hashInput(text) {
+  return ethers.keccak256(ethers.toUtf8Bytes(text));
+}
+
+// Live hash preview
+document.getElementById('identityData').addEventListener('input', function() {
+  const v = this.value.trim();
+  document.getElementById('hashPreview').value = v ? hashInput(v) : '';
+});
+
+// ─── Wallet Connect ───────────────────────────────────
 async function connectWallet() {
-  const provider = new ethers.providers.Web3Provider(window.ethereum);
-  await provider.send("eth_requestAccounts", []);
-  signer = provider.getSigner();
-
-  contract = new ethers.Contract(contractAddress, abi, signer);
-
-  document.getElementById("wallet").innerText =
-    "Wallet: " + await signer.getAddress();
-}
-
-// Tabs
-function showTab(tab) {
-  ["register","access","query"].forEach(id=>{
-    document.getElementById(id).style.display = "none";
-  });
-  document.getElementById(tab).style.display = "block";
-}
-
-// Auto hash
-function computeHash() {
-  const input = document.getElementById("identityInput").value;
-  const hash = ethers.utils.keccak256(
-    ethers.utils.toUtf8Bytes(input)
-  );
-  document.getElementById("hashOutput").value = hash;
-}
-
-// Register
-async function registerIdentity() {
-  const hash = document.getElementById("hashOutput").value;
-  await (await contract.createIdentity(hash)).wait();
-  alert("Identity Registered!");
-}
-
-// Access
-async function grantAccess() {
-  const addr = document.getElementById("verifierAddr").value;
-  await (await contract.grantAccess(addr)).wait();
-  alert("Access Granted!");
-}
-
-async function revokeAccess() {
-  const addr = document.getElementById("verifierAddr").value;
-  await (await contract.revokeAccess(addr)).wait();
-  alert("Access Revoked!");
-}
-
-// Query
-async function getIdentity() {
-  const addr = document.getElementById("userAddr").value;
-
+  if (!window.ethereum) { toast('MetaMask not found!', 'error'); return; }
   try {
-    const hash = await contract.getIdentity(addr);
-    document.getElementById("result").innerHTML =
-      `<div class="status success">✅ Verified<br>${hash}</div>`;
-  } catch {
-    document.getElementById("result").innerHTML =
-      `<div class="status fail">❌ Access Denied</div>`;
+    provider = new ethers.BrowserProvider(window.ethereum);
+    await provider.send('eth_requestAccounts', []);
+    signer = await provider.getSigner();
+    userAddress = await signer.getAddress();
+
+    const network = await provider.getNetwork();
+    document.getElementById('addrDisplay').textContent = shortAddr(userAddress);
+    document.getElementById('networkDisplay').textContent = network.name.toUpperCase() || `Chain ${network.chainId}`;
+
+    const btn = document.getElementById('connectBtn');
+    btn.textContent = '✓ ' + shortAddr(userAddress);
+    btn.classList.add('connected');
+
+    log(`Wallet connected: ${userAddress}`, 'success');
+    toast('Wallet connected!');
+
+    if (contract) await refreshStatus();
+  } catch(e) {
+    log('Wallet connection failed: ' + e.message, 'error');
+    toast('Connection failed', 'error');
   }
 }
-</script>
 
+// ─── Load Contract ────────────────────────────────────
+async function loadContract() {
+  const addr = document.getElementById('contractInput').value.trim();
+  if (!ethers.isAddress(addr)) { toast('Invalid address', 'error'); return; }
+  if (!signer) { toast('Connect wallet first', 'error'); return; }
+
+  try {
+    contract = new ethers.Contract(addr, ABI, signer);
+    const admin = await contract.admin();
+    document.getElementById('contractAddr').textContent = addr;
+    document.getElementById('contractStatus').textContent = `Loaded ✓ | Admin: ${shortAddr(admin)}`;
+    log(`Contract loaded at ${addr}`, 'success');
+    log(`Admin: ${admin}`, 'info');
+    toast('Contract loaded!');
+    await refreshStatus();
+  } catch(e) {
+    log('Failed to load contract: ' + e.message, 'error');
+    toast('Load failed', 'error');
+  }
+}
+
+// ─── Refresh Status ───────────────────────────────────
+async function refreshStatus() {
+  if (!contract || !userAddress) return;
+  try {
+    const c = await contract.citizens(userAddress);
+    document.getElementById('regStatus').textContent = c[1] ? 'YES ✓' : 'NO';
+    document.getElementById('verStatus').textContent = c[2] ? 'YES ✓' : 'NO';
+  } catch(e) {}
+}
+
+// ─── Register Identity ────────────────────────────────
+async function registerIdentity() {
+  if (!contract) { toast('Load contract first', 'error'); return; }
+  const data = document.getElementById('identityData').value.trim();
+  if (!data) { toast('Enter identity data', 'error'); return; }
+
+  try {
+    const hash = hashInput(data);
+    log(`Registering identity with hash: ${hash.slice(0,18)}...`, 'info');
+    const tx = await contract.registerIdentity(hash);
+    log(`TX sent: ${tx.hash}`, 'warn');
+    await tx.wait();
+    log('Identity registered successfully!', 'success');
+    toast('Identity registered!');
+    await refreshStatus();
+  } catch(e) {
+    const msg = e.reason || e.message;
+    log('Registration failed: ' + msg, 'error');
+    toast('Failed: ' + msg, 'error');
+  }
+}
+
+// ─── Verify Citizen (Admin) ───────────────────────────
+async function verifyCitizen() {
+  if (!contract) { toast('Load contract first', 'error'); return; }
+  const addr = document.getElementById('verifyCitizenAddr').value.trim();
+  if (!ethers.isAddress(addr)) { toast('Invalid address', 'error'); return; }
+
+  try {
+    log(`Verifying citizen: ${addr}`, 'info');
+    const tx = await contract.verifyCitizen(addr);
+    log(`TX sent: ${tx.hash}`, 'warn');
+    await tx.wait();
+    log(`Citizen ${shortAddr(addr)} verified!`, 'success');
+    toast('Citizen verified!');
+    await refreshStatus();
+  } catch(e) {
+    const msg = e.reason || e.message;
+    log('Verify failed: ' + msg, 'error');
+    toast('Failed: ' + msg, 'error');
+  }
+}
+
+// ─── Grant Access ─────────────────────────────────────
+async function grantAccess() {
+  if (!contract) { toast('Load contract first', 'error'); return; }
+  const addr = document.getElementById('grantAddr').value.trim();
+  if (!ethers.isAddress(addr)) { toast('Invalid address', 'error'); return; }
+
+  try {
+    log(`Granting access to: ${addr}`, 'info');
+    const tx = await contract.grantAccess(addr);
+    log(`TX sent: ${tx.hash}`, 'warn');
+    await tx.wait();
+    log(`Access granted to ${shortAddr(addr)}`, 'success');
+    toast('Access granted!');
+  } catch(e) {
+    const msg = e.reason || e.message;
+    log('Grant failed: ' + msg, 'error');
+    toast('Failed: ' + msg, 'error');
+  }
+}
+
+// ─── Revoke Access ────────────────────────────────────
+async function revokeAccess() {
+  if (!contract) { toast('Load contract first', 'error'); return; }
+  const addr = document.getElementById('revokeAddr').value.trim();
+  if (!ethers.isAddress(addr)) { toast('Invalid address', 'error'); return; }
+
+  try {
+    log(`Revoking access from: ${addr}`, 'info');
+    const tx = await contract.revokeAccess(addr);
+    log(`TX sent: ${tx.hash}`, 'warn');
+    await tx.wait();
+    log(`Access revoked from ${shortAddr(addr)}`, 'success');
+    toast('Access revoked!');
+  } catch(e) {
+    const msg = e.reason || e.message;
+    log('Revoke failed: ' + msg, 'error');
+    toast('Failed: ' + msg, 'error');
+  }
+}
+
+// ─── Check Access ─────────────────────────────────────
+async function checkAccess() {
+  if (!contract) { toast('Load contract first', 'error'); return; }
+  const user = document.getElementById('checkUser').value.trim();
+  const prov = document.getElementById('checkProvider').value.trim();
+  if (!ethers.isAddress(user) || !ethers.isAddress(prov)) { toast('Invalid address(es)', 'error'); return; }
+
+  try {
+    const result = await contract.checkAccess(user, prov);
+    const badge = document.getElementById('accessResult');
+    badge.className = 'result-badge show ' + result;
+    badge.textContent = result ? '✓ ACCESS GRANTED' : '✗ ACCESS DENIED';
+    log(`checkAccess(${shortAddr(user)}, ${shortAddr(prov)}) = ${result}`, result ? 'success' : 'error');
+  } catch(e) {
+    log('Check failed: ' + e.message, 'error');
+    toast('Check failed', 'error');
+  }
+}
+
+// ─── Verify Identity ──────────────────────────────────
+async function verifyIdentity() {
+  if (!contract) { toast('Load contract first', 'error'); return; }
+  const addr = document.getElementById('verifyAddr').value.trim();
+  if (!ethers.isAddress(addr)) { toast('Invalid address', 'error'); return; }
+
+  try {
+    const result = await contract.verifyIdentity(addr);
+    const badge = document.getElementById('verifyResult');
+    badge.className = 'result-badge show ' + result;
+    badge.textContent = result ? '✓ IDENTITY VERIFIED' : '✗ NOT VERIFIED';
+    log(`verifyIdentity(${shortAddr(addr)}) = ${result}`, result ? 'success' : 'error');
+  } catch(e) {
+    log('Verify check failed: ' + e.message, 'error');
+    toast('Check failed', 'error');
+  }
+}
+
+// ─── Auto-connect if already authorized ──────────────
+window.addEventListener('load', async () => {
+  if (window.ethereum?.selectedAddress) connectWallet();
+  window.ethereum?.on('accountsChanged', () => location.reload());
+  window.ethereum?.on('chainChanged', () => location.reload());
+});
+</script>
 </body>
 </html>
